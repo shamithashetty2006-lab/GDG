@@ -18,8 +18,13 @@ export async function POST(req: Request) {
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
     console.log("Debug Keys:", {
-      openai: openaiApiKey ? "Found (Length: " + openaiApiKey.length + ")" : "Missing",
-      gemini: geminiApiKey ? "Found" : "Missing"
+      openai: openaiApiKey ? `Present (${openaiApiKey.substring(0, 5)}...)` : "Missing",
+      gemini: geminiApiKey ? "Present" : "Missing"
+    });
+
+    console.log("Request Payload Info:", {
+      mimeType,
+      base64Length: base64.length
     });
 
     // Initialize clients
