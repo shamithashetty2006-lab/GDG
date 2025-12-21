@@ -8,6 +8,7 @@ import Link from "next/link";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/components/auth-provider";
+import { cn } from "@/lib/utils";
 
 export default function AnalyzePage() {
     const { user } = useAuth();

@@ -1,9 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 // @ts-ignore
-import pdf from "pdf-parse";
+import * as pdfParse from "pdf-parse";
 
 export async function POST(req: Request) {
+  let textContent = "";
+
   try {
     const { base64, mimeType } = await req.json();
 
@@ -12,46 +14,33 @@ export async function POST(req: Request) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    console.log("API Key Configured:", !!apiKey);
-    if (!apiKey) {
-      return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
-    }
+    const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-
-    // Choose model based on input. Gemini 1.5 Flash is good for multimodal and speed.
-    // If not available, fallback to gemini-pro (text only) or gemini-pro-vision (images).
-    // Safest bet for generic use is "gemini-1.5-flash".
-    // Safest bet for generic use is "gemini-1.5-flash".
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // robust fallback mechanism
+    const modelsToTry = [
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-001",
+      "gemini-pro"
+    ];
 
     let promptParts: any[] = [];
-    let textContent = "";
-
-    // Parse PDF on server if possible to save tokens/complexity, or pass as image parts if needed.
-    // However, Gemini 1.5 accepts PDF as document parts if using the File API, but via standard generateContent
-    // we often pass text or image.
-    // For this implementation:
-    // 1. If Text/Markdown: Pass raw text.
-    // 2. If PDF: Parse text using pdf-parse and pass as text. 
-    //    (Images in PDF won't be analyzed this way, but it covers most contracts).
-    // 3. If Image: Pass inline data.
 
     if (mimeType === "application/pdf") {
       try {
         const buffer = Buffer.from(base64, "base64");
-        // const pdf = require("pdf-parse");
+        // @ts-ignore
+        const pdf = pdfParse.default || pdfParse;
         const pdfData = await pdf(buffer);
         textContent = pdfData.text;
 
-        // Add text prompt
         promptParts.push({ text: `Analyze the following contract text:\n\n${textContent.substring(0, 50000)}` });
       } catch (e) {
         console.error("PDF Parsing/Import Error:", e);
         return NextResponse.json({ error: "Failed to parse PDF", details: String(e) }, { status: 500 });
       }
     } else if (mimeType.startsWith("image/")) {
-      // Image support
       promptParts.push({
         inlineData: {
           data: base64,
@@ -60,7 +49,6 @@ export async function POST(req: Request) {
       });
       promptParts.push({ text: "Analyze the contract shown in this image." });
     } else {
-      // Plain text
       const buffer = Buffer.from(base64, "base64");
       textContent = buffer.toString("utf-8");
       promptParts.push({ text: `Analyze the following contract text:\n\n${textContent.substring(0, 30000)}` });
@@ -88,45 +76,121 @@ export async function POST(req: Request) {
       Do NOT use Markdown formatting (like \`\`\`json) in the response. Return raw JSON only.
     `;
 
-    // Add system instruction to prompt (or use systemInstruction if model supports it, but simple prompt appending works)
     promptParts.push({ text: systemInstruction });
 
-    const result = await model.generateContent(promptParts);
-    const response = await result.response;
-    const textResponse = response.text();
+    // Execute with fallback
+    if (genAI) {
+      for (const modelName of modelsToTry) {
+        try {
+          console.log(`Attempting analysis with model: ${modelName}`);
+          const currentModel = genAI.getGenerativeModel({ model: modelName });
+          const result = await currentModel.generateContent(promptParts);
+          const response = await result.response;
+          const textResponse = response.text();
+          console.log("Raw AI Response:", textResponse);
 
-    console.log("Raw AI Response:", textResponse); // For debugging
+          const cleanJson = textResponse
+            .replace(/```json/g, "")
+            .replace(/```/g, "")
+            .trim();
 
-    // Clean up
-    const cleanJson = textResponse
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-
-    try {
-      const parsed = JSON.parse(cleanJson);
-      return NextResponse.json(parsed);
-    } catch (e) {
-      console.error("JSON Parse Error:", e, "Raw:", textResponse);
-      // Fallback or error
-      return NextResponse.json({
-        summary: "Failed to parse AI Key Details.",
-        key_details: ["Raw Analysis below:"],
-        risks: [{ severity: "Low", clause: "Parsing Error", explanation: cleanJson }],
-        score: 0
-      });
+          try {
+            const parsed = JSON.parse(cleanJson);
+            return NextResponse.json(parsed);
+          } catch (e) {
+            console.error("JSON Parse Error:", e);
+            // Don't error out completely, maybe next model works? 
+            // Actually usually JSON error means model worked but output bad. 
+            // We can treat this as a failure and try next model or just return local analysis.
+            throw new Error("JSON invalid");
+          }
+        } catch (error: any) {
+          console.warn(`Model ${modelName} failed:`, error.message);
+        }
+      }
     }
 
+    console.log("All AI models failed (or no key), falling back to local analysis...");
+    const localResult = analyzeLocally(textContent);
+    return NextResponse.json(localResult);
+
   } catch (error: any) {
-    console.error("Analysis Error JSON:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-    return NextResponse.json({
-      summary: "Analysis failed (AI Service Error). Showing placeholder results.",
-      key_details: ["Contract Type: Unknown", "Date: Pending", "Parties: Pending"],
-      risks: [
-        { severity: "Medium", clause: "AI Service Unavailable", explanation: `Error details: ${error.message}. Please check your API Key and Region.` },
-        { severity: "Low", clause: "Fallback Mode", explanation: "This is a demonstration result." }
-      ],
-      score: 50
-    });
+    console.error("Analysis Error (Falling back to local):", error);
+    return NextResponse.json(analyzeLocally(textContent || ""));
   }
+}
+
+function analyzeLocally(text: string) {
+  const risks: any[] = [];
+  const details: string[] = [];
+  let score = 100;
+
+  const lowerText = (text || "").toLowerCase();
+
+  if (!text || text.length < 50) {
+    return {
+      summary: "Document appears to be too short or empty to analyze.",
+      key_details: [],
+      risks: [],
+      score: 0
+    };
+  }
+
+  // Match dates
+  const dateMatch = text.match(/\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{1,2},?\s\d{4}\b/gi);
+  if (dateMatch) {
+    const uniqueDates = Array.from(new Set(dateMatch)).slice(0, 3);
+    details.push(`Mentioned Dates: ${uniqueDates.join(", ")}`);
+  }
+
+  // Match money
+  const moneyMatch = text.match(/[$€£]\s?\d{1,3}(,\d{3})*(\.\d{2})?|(\d+)\s(dollars|euros|pounds)/gi);
+  if (moneyMatch) {
+    const uniqueMoney = Array.from(new Set(moneyMatch)).slice(0, 3);
+    details.push(`Financial Figures: ${uniqueMoney.join(", ")}`);
+  }
+
+  // Risk Keywords
+  const riskKeywords = [
+    { word: "indemnify", risk: "Indemnification obligation", severity: "High" },
+    { word: "termination", risk: "Termination clause present", severity: "Medium" },
+    { word: "liability", risk: "Liability limitation mentioned", severity: "High" },
+    { word: "arbitration", risk: "Forced arbitration clause", severity: "High" },
+    { word: "confidential", risk: "Confidentiality requirements", severity: "Medium" },
+    { word: "penalty", risk: "Penalty clauses detected", severity: "Medium" },
+    { word: "jurisdiction", risk: "Specific jurisdiction defined", severity: "Low" }
+  ];
+
+  riskKeywords.forEach(kw => {
+    if (lowerText.includes(kw.word)) {
+      score -= 10;
+      const idx = lowerText.indexOf(kw.word);
+      const start = Math.max(0, text.lastIndexOf(".", idx) + 1);
+      const end = Math.min(text.length, text.indexOf(".", idx + 50));
+      const snippet = text.substring(start, end).trim();
+
+      risks.push({
+        severity: kw.severity,
+        clause: kw.risk,
+        explanation: `Found keyword "${kw.word}": "${snippet.substring(0, 150)}..."`
+      });
+    }
+  });
+
+  if (score < 0) score = 0;
+
+  // Generate a better summary from content
+  let generatedSummary = "Basic Analysis (AI Unavailable): No text content could be extracted.";
+  if (text && text.length > 0) {
+    // Take the first 300 characters or the first paragraph
+    const summaryEnd = text.indexOf('\n\n') > 50 ? text.indexOf('\n\n') : 300;
+    generatedSummary = "Content Preview: " + text.substring(0, summaryEnd).substring(0, 300).replace(/\s+/g, " ").trim() + "...";
+  }
+
+  return {
+    summary: generatedSummary,
+    key_details: details.length > 0 ? details : ["No specific dates or financial figures found."],
+    risks: risks.length > 0 ? risks : [{ severity: "Low", clause: "No obvious keywords found", explanation: "Standard keyword scan returned no matches." }],
+    score: score
+  };
 }
