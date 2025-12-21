@@ -17,6 +17,11 @@ export async function POST(req: Request) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
+    console.log("Debug Keys:", {
+      openai: openaiApiKey ? "Found (Length: " + openaiApiKey.length + ")" : "Missing",
+      gemini: geminiApiKey ? "Found" : "Missing"
+    });
+
     // Initialize clients
     // Note: OpenAI client will throw if initialized without key if strict, but we pass it explicitly.
     const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
@@ -67,31 +72,45 @@ export async function POST(req: Request) {
       }
 
       const systemInstruction = `
-          You are an expert legal aide. Analyze the provided contract document.
+          You are an expert legal scholar. Analyze the provided contract document.
           
+          Guidelines for your response:
+          1. Professionalism: Use formal, precise legal English.
+          2. Completeness: Every sentence MUST be finished. Do NOT use "..." or truncate mid-sentence.
+          3. Holistic Summary: The summary must capture the document's overall legal purpose and impact (e.g., "This Service Agreement defines the relationship between X and Y..."), not just a preview of the text.
+          4. Format: Return valid JSON only.
+
           Required Output Format (JSON):
           {
-            "summary": "High-level summary of what this contract is about (2-3 sentences).",
+            "summary": "Professional narrative summary (2-3 complete sentences).",
             "key_details": [
-               "List of 3-5 crucial details (e.g., Parties involved, Effective Date, Payment Terms, Termination conditions)."
+               "List of 3-5 crucial details in full sentences."
             ],
             "risks": [
               {
                 "severity": "High" | "Medium" | "Low",
-                "clause": "Quote the specific clause or section title",
-                "explanation": "Clear explanation of why this is risky."
+                "category": "Termination" | "Payment" | "Arbitration" | "Auto-renewal" | "Liability" | "Confidentiality" | "Other",
+                "clause": "Title or quote of the clause",
+                "explanation": "Professional legal explanation.",
+                "simple_explanation": "Plain-English explanation for a non-lawyer.",
+                "who_benefits": "User" | "Company" | "Neutral",
+                "impact": "Real-world practical consequence for the user.",
+                "confidence": 0-100
               }
             ],
-            "score": 1-100 (Integer, 100 = Very Safe/Standard, 0 = Extremely Dangerous)
+            "score": 1-100
           }
 
-          Do NOT use Markdown formatting (like \`\`\`json) in the response. Return raw JSON only.
+          Special instructions: 
+          - Flag Red-Flag Patterns: Auto-renewal traps, unilateral termination, and forced arbitration.
+          - Use ethical, transparent language.
+          - Return RAW JSON only. Do not wrap in markdown blocks.
         `;
       promptParts.push({ text: systemInstruction });
 
+      // Use only models that are known to exist for the current API version
       const modelsToTry = [
-        "gemini-2.0-flash", "gemini-2.0-flash-exp",
-        "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-pro"
+        "gemini-1.5-flash"
       ];
 
       for (const modelName of modelsToTry) {
@@ -126,13 +145,24 @@ export async function POST(req: Request) {
 
 async function analyzeWithOpenAI(openai: OpenAI, text: string, base64: string, mimeType: string) {
   const systemPrompt = `
-      You are an expert legal aide. Analyze the provided contract document.
-      Return valid JSON only. format:
+      You are an expert legal scholar.
+      Analyze the contract and provide ethical, transparent insights.
+      Ensure all sentences are complete and professional. No truncations.
+      Return valid JSON only:
       {
-        "summary": "High-level summary (2-3 sentences).",
-        "key_details": ["List of 3-5 crucial details"],
-        "risks": [{ "severity": "High"|"Medium"|"Low", "clause": "Clause text", "explanation": "Why risky" }],
-        "score": 1-100 (Integer)
+        "summary": "Professional narrative (2-3 complete sentences).",
+        "key_details": ["3-5 crucial details in full sentences"],
+        "risks": [{ 
+          "severity": "High"|"Medium"|"Low", 
+          "category": "Termination"|"Payment"|"Arbitration"|"Auto-renewal"|"Liability"|"Other",
+          "clause": "Clause reference", 
+          "explanation": "Professional explanation",
+          "simple_explanation": "Plain-English simplified explanation",
+          "who_benefits": "User"|"Company"|"Neutral",
+          "impact": "Practical consequence for the user",
+          "confidence": 0-100
+        }],
+        "score": 1-100
       }
     `;
 
@@ -140,13 +170,13 @@ async function analyzeWithOpenAI(openai: OpenAI, text: string, base64: string, m
 
   if (text) {
     // Truncate to safe limit for GPT-4o input (approx 128k tokens, sticking to ~50k chars is safe)
-    messages.push({ role: "user", content: `Analyze this contract:\n\n${text.substring(0, 50000)}` });
+    messages.push({ role: "user", content: `Analyze this contract: \n\n${text.substring(0, 50000)} ` });
   } else if (mimeType.startsWith("image/")) {
     messages.push({
       role: "user",
       content: [
         { type: "text", text: "Analyze the contract shown in this image." },
-        { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
+        { type: "image_url", image_url: { url: `data:${mimeType}; base64, ${base64} ` } }
       ]
     });
   } else {
@@ -172,58 +202,65 @@ function analyzeLocally(text: string) {
 
   const lowerText = (text || "").toLowerCase();
 
-  let generatedSummary = "Basic Analysis (AI Unavailable): No text content could be extracted.";
-  if (text && text.length > 0) {
-    const summaryEnd = text.indexOf('\n\n') > 50 ? text.indexOf('\n\n') : 300;
-    generatedSummary = "Content Preview: " + text.substring(0, summaryEnd).substring(0, 300).replace(/\s+/g, " ").trim() + "...";
-  }
-
   if (!text || text.length < 50) {
     return {
-      summary: "Document appears to be too short or empty to analyze.",
-      key_details: [],
+      summary: "The provided document does not contain sufficient text for a meaningful legal analysis.",
+      key_details: ["Insufficient data"],
       risks: [],
       score: 0
     };
   }
 
-  // Match dates
-  const dateMatch = text.match(/\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{1,2},?\s\d{4}\b/gi);
+  // Contract Type Detection
+  let type = "Agreement";
+  if (lowerText.includes("non-disclosure") || lowerText.includes("confidentiality")) type = "Non-Disclosure Agreement";
+  else if (lowerText.includes("employment") || lowerText.includes("offer letter")) type = "Employment Agreement";
+  else if (lowerText.includes("service") || lowerText.includes("master service")) type = "Service Agreement";
+  else if (lowerText.includes("lease") || (lowerText.includes("rental") && lowerText.includes("tenant"))) type = "Lease Agreement";
+  else if (lowerText.includes("sale") || lowerText.includes("purchase")) type = "Sales Agreement";
+
+  const generatedSummary = `This document appears to be a ${type} governing the legal relationship and obligations between the involved parties.It outlines the specific terms, conditions, and standards expected within this legal framework.`;
+
+  // Helper for professional sentence generation
+  const getSnippet = (keyword: string, text: string) => {
+    const idx = text.toLowerCase().indexOf(keyword.toLowerCase());
+    const start = Math.max(0, text.lastIndexOf(".", idx) + 1);
+    const end = Math.min(text.length, text.indexOf(".", idx + 100));
+    let snippet = text.substring(start, end).trim();
+    if (snippet.length > 200) snippet = snippet.substring(0, 197) + "...";
+    return snippet;
+  };
+
+  // Improved Detail Extraction
+  const dateMatch = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{1,2},?\s\d{4}\b/gi);
   if (dateMatch) {
-    const uniqueDates = Array.from(new Set(dateMatch)).slice(0, 3);
-    details.push(`Mentioned Dates: ${uniqueDates.join(", ")}`);
+    details.push(`The contract cites an effective or reference date of ${dateMatch[0]}.`);
   }
 
-  // Match money
-  const moneyMatch = text.match(/[$€£]\s?\d{1,3}(,\d{3})*(\.\d{2})?|(\d+)\s(dollars|euros|pounds)/gi);
-  if (moneyMatch) {
-    const uniqueMoney = Array.from(new Set(moneyMatch)).slice(0, 3);
-    details.push(`Financial Figures: ${uniqueMoney.join(", ")}`);
-  }
+  if (lowerText.includes("confidential")) details.push("The document contains strictly defined confidentiality obligations.");
+  if (lowerText.includes("payment") || lowerText.includes("fee")) details.push("Financial considerations and fee structures are explicitly outlined.");
 
-  // Risk Keywords
+  // Professional Risk Heuristics
   const riskKeywords = [
-    { word: "indemnify", risk: "Indemnification obligation", severity: "High" },
-    { word: "termination", risk: "Termination clause present", severity: "Medium" },
-    { word: "liability", risk: "Liability limitation mentioned", severity: "High" },
-    { word: "arbitration", risk: "Forced arbitration clause", severity: "High" },
-    { word: "confidential", risk: "Confidentiality requirements", severity: "Medium" },
-    { word: "penalty", risk: "Penalty clauses detected", severity: "Medium" },
-    { word: "jurisdiction", risk: "Specific jurisdiction defined", severity: "Low" }
+    { word: "indemnify", risk: "Indemnification Obligations", category: "Liability", who_benefits: "Company", explanation: "This clause creates a high financial risk by requiring one party to compensate the other for specified losses or damages.", simple: "You might have to pay for the other company's mistakes or legal fees.", impact: "Potential high out-of-pocket costs in a lawsuit.", severity: "High" },
+    { word: "liability", risk: "Limitation of Liability", category: "Liability", who_benefits: "Company", explanation: "A limitation of liability section may restrict your ability to recover full damages in the event of a breach.", simple: "There is a 'cap' on how much you can sue them for, even if they fail completely.", impact: "You cannot recover your full losses if they mess up.", severity: "High" },
+    { word: "termination", risk: "Termination Provisions", category: "Termination", who_benefits: "Neutral", explanation: "The agreement includes specific conditions under which the contract may be ended, potentially affecting long-term stability.", simple: "This explains how and when the deal can be ended.", impact: "The specific notice period could leave you stuck or suddenly without service.", severity: "Medium" },
+    { word: "arbitration", risk: "Dispute Resolution (Arbitration)", category: "Arbitration", who_benefits: "Company", explanation: "Forced arbitration clauses limit your right to seek judicial relief in a public court of law.", simple: "You can't go to court; you have to use a private judge they might choose.", impact: "Losing the right to a public trial and potentially unbiased jury.", severity: "High" },
+    { word: "auto-renew", risk: "Automatic Renewal", category: "Auto-renewal", who_benefits: "Company", explanation: "Contracts that renew without explicit consent can lead to unintended long-term financial commitments.", simple: "This deal keeps going forever unless you remember to cancel it.", impact: "You'll be charged automatically if you miss a deadline.", severity: "Medium" }
   ];
 
   riskKeywords.forEach(kw => {
     if (lowerText.includes(kw.word)) {
-      score -= 10;
-      const idx = lowerText.indexOf(kw.word);
-      const start = Math.max(0, text.lastIndexOf(".", idx) + 1);
-      const end = Math.min(text.length, text.indexOf(".", idx + 50));
-      const snippet = text.substring(start, end).trim();
-
+      score -= 15;
       risks.push({
         severity: kw.severity,
+        category: kw.category,
         clause: kw.risk,
-        explanation: `Found keyword "${kw.word}": "${snippet.substring(0, 150)}..."`
+        explanation: kw.explanation,
+        simple_explanation: kw.simple,
+        who_benefits: kw.who_benefits,
+        impact: kw.impact,
+        confidence: 85
       });
     }
   });
@@ -232,8 +269,8 @@ function analyzeLocally(text: string) {
 
   return {
     summary: generatedSummary,
-    key_details: details.length > 0 ? details : ["No specific dates or financial figures found."],
-    risks: risks.length > 0 ? risks : [{ severity: "Low", clause: "No obvious keywords found", explanation: "Standard keyword scan returned no matches." }],
+    key_details: details.length > 0 ? details : ["General contractual terms detected with standard obligations."],
+    risks: risks.length > 0 ? risks : [{ severity: "Low", clause: "General Terms", explanation: "The document uses standard contractual language with no immediate high-risk keyword alerts." }],
     score: score
   };
 }

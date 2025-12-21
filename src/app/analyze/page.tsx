@@ -152,9 +152,9 @@ export default function AnalyzePage() {
                                 <CardDescription>
                                     {result.summary}
                                     {result.analysis_source && (
-                                        <div className="mt-2 text-xs font-medium text-muted-foreground bg-muted inline-block px-2 py-1 rounded">
+                                        <span className="mt-2 text-xs font-medium text-muted-foreground bg-muted inline-block px-2 py-1 rounded">
                                             Source: {result.analysis_source}
-                                        </div>
+                                        </span>
                                     )}
                                 </CardDescription>
                             </CardHeader>
