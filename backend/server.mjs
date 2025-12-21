@@ -1,9 +1,11 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import pdf from "pdf-parse";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 
 dotenv.config();
 

@@ -7,7 +7,7 @@
     "scripts": {
         "start": "node server.mjs",
         "dev": "nodemon server.mjs",
-        "build": "npm install && ls -la && ls -la node_modules"
+        "build": "npm install"
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
