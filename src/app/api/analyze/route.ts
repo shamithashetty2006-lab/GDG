@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       console.log("Attempting analysis with OpenAI...");
       try {
         const result = await analyzeWithOpenAI(openai, textContent, base64, mimeType);
-        if (result) return NextResponse.json(result);
+        if (result) return NextResponse.json({ ...result, analysis_source: "OpenAI (ChatGPT)" });
       } catch (error: any) {
         console.warn("OpenAI Analysis Failed (Falling back to Gemini):", error.message);
       }
@@ -103,7 +103,8 @@ export async function POST(req: Request) {
           const textResponse = response.text();
 
           const cleanJson = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
-          return NextResponse.json(JSON.parse(cleanJson));
+          const parsed = JSON.parse(cleanJson);
+          return NextResponse.json({ ...parsed, analysis_source: `Gemini (${modelName})` });
         } catch (error: any) {
           console.warn(`Gemini Model ${modelName} failed:`, error.message);
         }
@@ -115,11 +116,11 @@ export async function POST(req: Request) {
     // ---------------------------------------------------------
     console.log("All AI models failed (or no keys), falling back to local analysis...");
     const localResult = analyzeLocally(textContent);
-    return NextResponse.json(localResult);
+    return NextResponse.json({ ...localResult, analysis_source: "Local (Basic Mode)" });
 
   } catch (error: any) {
     console.error("Analysis Error (Falling back to local):", error);
-    return NextResponse.json(analyzeLocally(textContent || ""));
+    return NextResponse.json({ ...analyzeLocally(textContent || ""), analysis_source: "Local (Fallback)" });
   }
 }
 

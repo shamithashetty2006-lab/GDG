@@ -149,7 +149,14 @@ export default function AnalyzePage() {
                                         Safety Score: {result.score}/100
                                     </span>
                                 </CardTitle>
-                                <CardDescription>{result.summary}</CardDescription>
+                                <CardDescription>
+                                    {result.summary}
+                                    {result.analysis_source && (
+                                        <div className="mt-2 text-xs font-medium text-muted-foreground bg-muted inline-block px-2 py-1 rounded">
+                                            Source: {result.analysis_source}
+                                        </div>
+                                    )}
+                                </CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-6">
