@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.env.local
+.vscode
+README.md
+Dockerfile
+.dockerignore
+npm-debug.log
+error.txt
+models.txt
+check-models.js
+test-api.js
