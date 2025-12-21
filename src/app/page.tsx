@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard } from "lucide-react";
+import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -35,6 +35,12 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Analysis failed (Status: ${res.status})`);
+      }
+
       const data = await res.json();
       setResult(data);
 
@@ -61,9 +67,9 @@ export default function HomePage() {
       }
 
       console.log("Analysis result:", data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setSaveStatus("An error occurred during analysis.");
+      setSaveStatus(err.message || "An error occurred during analysis.");
     } finally {
       setAnalyzing(false);
     }
@@ -82,8 +88,11 @@ export default function HomePage() {
 
   const handlePaste = async () => {
     if (!text) return;
-    // When pasting raw text we treat it as plain‑text content.
-    await analyze({ base64: btoa(text), mimeType: "text/plain" });
+    // Handle Unicode characters safely for base64
+    const base64 = btoa(encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (match, p1) =>
+      String.fromCharCode(parseInt(p1, 16))
+    ));
+    await analyze({ base64, mimeType: "text/plain" });
   };
 
   return (
