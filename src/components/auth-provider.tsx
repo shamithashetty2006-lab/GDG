@@ -19,17 +19,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
+        // Fallback to stop loading if Firebase takes too long or fails
+        const timer = setTimeout(() => {
+            if (loading) {
+                console.warn("Auth state change selection timed out.");
+                setLoading(false);
+            }
+        }, 3000); // 3 second timeout
+
+        if (!auth.onAuthStateChanged) {
+            setLoading(false);
+            return () => clearTimeout(timer);
+        }
+
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
             setLoading(false);
+            clearTimeout(timer);
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => {
+            unsubscribe();
+            clearTimeout(timer);
+        };
+    }, [loading]);
 
     return (
         <AuthContext.Provider value={{ user, loading }}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 }
