@@ -30,8 +30,7 @@ export default function HomePage() {
   const analyze = async (payload: { base64: string; mimeType: string }) => {
     setAnalyzing(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://clearsign-backend.onrender.com";
-      const res = await fetch(`${API_URL}/analyze`, {
+      const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
