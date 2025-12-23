@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+📊 Contact Risk Analyzing Website
 
-## Getting Started
+A full-stack web application that analyzes **contact-based risk levels** using user-provided data and predefined models.  
+The platform includes authentication, backend processing, and report generation to help users understand potential exposure risks clearly and efficiently.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+🎯 Project Overview
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Contact Risk Analyzing Website is designed to:
+- Collect user contact-related inputs
+- Analyze risk using predefined models and logic
+- Display risk insights in a clean UI
+- Support authentication and secure access
+- Generate downloadable reports
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+This project demonstrates real-world application development using modern web technologies.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+ ✨ Key Features
 
-## Learn More
+  **User Authentication**
+  - Firebase-based authentication
+  - Secure login system
 
-To learn more about Next.js, take a look at the following resources:
+ **Contact Risk Analysis**
+  - Risk evaluation based on defined models and conditions
+  - Backend-powered analysis logic
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+  **Result Presentation**
+  - Clear risk status display
+  - Structured UI components
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+  **PDF Report Generation**
+  - Automatically generate downloadable risk analysis reports
 
-## Deploy on Vercel
+   **Modular Architecture**
+  - Separate frontend and backend
+  - Reusable UI components
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+🛠️ Technologies Used
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+ Frontend
+- **Next.js (App Router)**
+- **TypeScript**
+- **Tailwind CSS**
+- **Reusable UI Components**
+
+ Backend
+- **Node.js**
+- **Express**
+- **API-based risk analysis**
+
+Other Tools & Services
+- **Firebase Authentication**
+- **PDF Generation Utility**
+- **ESLint**
+
+
+
