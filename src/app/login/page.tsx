@@ -18,7 +18,7 @@ export default function LoginPage() {
     // Redirect logged-in user
     useEffect(() => {
         if (user) {
-            router.push("/dashboard");
+            router.push("/");
         }
     }, [user, router]);
 
@@ -29,7 +29,7 @@ export default function LoginPage() {
         try {
             const provider = new GoogleAuthProvider();
             await signInWithPopup(auth, provider);
-            router.push("/dashboard");
+            router.push("/");
         } catch (err: any) {
             console.error("Login failed:", err);
             setError("Failed to sign in with Google. Please try again.");
