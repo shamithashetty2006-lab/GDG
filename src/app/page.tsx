@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2, Volume2, VolumeX, Languages } from "lucide-react";
+import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2, Volume2, VolumeX, Languages, CheckCircle2, Info, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -11,6 +11,8 @@ import { useAuth } from "@/components/auth-provider";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useSpeech } from "@/hooks/use-speech";
+import { useSTT } from "@/hooks/use-stt";
+import { useEffect as useReactEffect } from "react";
 
 const LANGUAGES = [
   { label: "English", value: "English", code: "en-US" },
@@ -36,6 +38,14 @@ export default function HomePage() {
   const [plainEnglish, setPlainEnglish] = useState(false);
   const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
   const [translating, setTranslating] = useState(false);
+  const { isListening, transcript, error: sttError, supported: sttSupported, startListening, setTranscript: setSttTranscript } = useSTT();
+
+  useReactEffect(() => {
+    if (transcript) {
+      setText(prev => prev + (prev ? " " : "") + transcript);
+      setSttTranscript("");
+    }
+  }, [transcript, setSttTranscript]);
 
   const displayResult = translatedResult || result;
 
@@ -169,10 +179,26 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
+      <div id="upload-section" className="grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
         <Card className="p-6">
           <CardHeader>
-            <CardTitle>Upload Contract</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Upload Contract
+                <div className="group relative">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-xl z-50">
+                    Upload your contract in PDF, DOCX, or Image format for AI analysis.
+                  </div>
+                </div>
+              </CardTitle>
+              {result && file && (
+                <div className="flex items-center gap-1 text-green-600 text-xs font-bold animate-in fade-in slide-in-from-right-2">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Analysis Completed
+                </div>
+              )}
+            </div>
             <CardDescription>Supported formats: PDF, DOCX, TXT, images</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center">
@@ -193,24 +219,74 @@ export default function HomePage() {
 
         <Card className="p-6">
           <CardHeader>
-            <CardTitle>Paste Contract Text</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Paste Contract Text
+              <div className="group relative">
+                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-xl z-50">
+                  Directly paste the contract text here if you don't have a file.
+                </div>
+              </div>
+            </CardTitle>
             <CardDescription>Copy & paste the contract content directly</CardDescription>
           </CardHeader>
           <CardContent>
-            <textarea
-              rows={6}
-              className="w-full rounded border p-2"
-              placeholder="Paste contract text here..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <Button
-              onClick={handlePaste}
-              disabled={!text || analyzing}
-              className="mt-4 w-full"
-            >
-              {analyzing ? "Analyzing…" : "Analyze Text"}
-            </Button>
+            <div className="relative">
+              <textarea
+                rows={6}
+                className="w-full rounded border p-2 pr-10"
+                placeholder="Paste contract text here..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+              {sttSupported && (
+                <div className="absolute top-2 right-2 flex flex-col items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "h-8 w-8 p-0 rounded-full transition-all",
+                      isListening ? "bg-red-100 text-red-600 animate-pulse" : "text-gray-400 hover:text-primary"
+                    )}
+                    onClick={() => isListening ? null : startListening()}
+                    disabled={isListening}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="22" />
+                    </svg>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2 flex flex-col gap-2">
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100 italic">
+                <Info className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <p className="text-[11px] text-amber-800 leading-tight">
+                  <span className="font-bold">Note:</span> English voice input only. If you speak in other languages, results may be inaccurate or fail. Please use English or manual text entry.
+                </p>
+              </div>
+
+              {sttError && (
+                <p className="text-xs text-red-500 font-medium">{sttError}</p>
+              )}
+
+              <Button
+                onClick={handlePaste}
+                disabled={!text || analyzing}
+                className="w-full"
+              >
+                {analyzing ? "Analyzing…" : "Analyze Text"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -246,7 +322,7 @@ export default function HomePage() {
         </Card>
         {result && (
           <div className="mt-12 w-full max-w-4xl">
-            <Card className="p-6">
+            <Card id="results-section" className="p-6">
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
@@ -258,7 +334,7 @@ export default function HomePage() {
 
                   <div className="flex flex-wrap items-center gap-3">
                     {/* Language Selector */}
-                    <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg border">
+                    <div id="language-section" className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg border group relative">
                       <Languages className="w-4 h-4 text-gray-500" />
                       <select
                         className="bg-transparent text-sm font-medium focus:outline-none"
@@ -271,6 +347,9 @@ export default function HomePage() {
                         ))}
                       </select>
                       {translating && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-xl z-50">
+                        Translate the entire analysis into your preferred regional language.
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 bg-primary/5 px-2 py-1 rounded-full border">
