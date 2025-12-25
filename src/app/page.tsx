@@ -192,7 +192,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </CardTitle>
-              {result && file && (
+              {result && (
                 <div className="flex items-center gap-1 text-green-600 text-xs font-bold animate-in fade-in slide-in-from-right-2">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Analysis Completed
@@ -212,7 +212,19 @@ export default function HomePage() {
               disabled={!file || analyzing}
               className="mt-4 w-full"
             >
-              {analyzing ? "Analyzing…" : "Analyze Uploaded File"}
+              {analyzing ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Analyzing…
+                </div>
+              ) : result ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Analysis Completed
+                </div>
+              ) : (
+                "Analyze Uploaded File"
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -284,7 +296,19 @@ export default function HomePage() {
                 disabled={!text || analyzing}
                 className="w-full"
               >
-                {analyzing ? "Analyzing…" : "Analyze Text"}
+                {analyzing ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing…
+                  </div>
+                ) : result ? (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Analysis Completed
+                  </div>
+                ) : (
+                  "Analyze Text"
+                )}
               </Button>
             </div>
           </CardContent>
