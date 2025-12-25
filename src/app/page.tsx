@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2 } from "lucide-react";
+import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2, Volume2, VolumeX, Languages } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -10,16 +10,34 @@ import { generateContractReport } from "@/lib/pdf-gen";
 import { useAuth } from "@/components/auth-provider";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useSpeech } from "@/hooks/use-speech";
+
+const LANGUAGES = [
+  { label: "English", value: "English", code: "en-US" },
+  { label: "Hindi", value: "Hindi", code: "hi-IN" },
+  { label: "Marathi", value: "Marathi", code: "mr-IN" },
+  { label: "Punjabi", value: "Punjabi", code: "pa-IN" },
+  { label: "Kannada", value: "Kannada", code: "kn-IN" },
+  { label: "Gujarati", value: "Gujarati", code: "gu-IN" },
+  { label: "Tamil", value: "Tamil", code: "ta-IN" },
+  { label: "Telugu", value: "Telugu", code: "te-IN" },
+];
 
 export default function HomePage() {
   const { user } = useAuth();
+  const { speak, stop, isSpeaking } = useSpeech();
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [translatedResult, setTranslatedResult] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'analysis' | 'explain'>('analysis');
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [plainEnglish, setPlainEnglish] = useState(false);
+  const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
+  const [translating, setTranslating] = useState(false);
+
+  const displayResult = translatedResult || result;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -27,8 +45,49 @@ export default function HomePage() {
     }
   };
 
+  const translateResult = async (lang: typeof LANGUAGES[0]) => {
+    if (!result || lang.value === "English") {
+      setTranslatedResult(null);
+      return;
+    }
+
+    setTranslating(true);
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: result,
+          targetLanguage: lang.value,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Translation failed");
+      }
+      const data = await res.json();
+      setTranslatedResult(data);
+    } catch (err: any) {
+      console.error("Translation error:", err);
+      // Fallback: reset translated result if it fails
+      setTranslatedResult(null);
+      alert(`Translation failed: ${err.message}`);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const lang = LANGUAGES.find(l => l.value === e.target.value) || LANGUAGES[0];
+    setSelectedLang(lang);
+    translateResult(lang);
+  };
+
   const analyze = async (payload: { base64: string; mimeType: string }) => {
     setAnalyzing(true);
+    setResult(null);
+    setTranslatedResult(null);
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -88,7 +147,6 @@ export default function HomePage() {
 
   const handlePaste = async () => {
     if (!text) return;
-    // Handle Unicode characters safely for base64
     const base64 = btoa(encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (match, p1) =>
       String.fromCharCode(parseInt(p1, 16))
     ));
@@ -111,9 +169,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Upload / Paste options */}
       <div className="grid w-full max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
-        {/* Upload */}
         <Card className="p-6">
           <CardHeader>
             <CardTitle>Upload Contract</CardTitle>
@@ -135,7 +191,6 @@ export default function HomePage() {
           </CardContent>
         </Card>
 
-        {/* Paste */}
         <Card className="p-6">
           <CardHeader>
             <CardTitle>Paste Contract Text</CardTitle>
@@ -160,12 +215,10 @@ export default function HomePage() {
         </Card>
       </div>
 
-      {/* Disclaimer */}
       <p className="mt-4 text-xs text-gray-600">
         This tool does not provide legal advice.
       </p>
 
-      {/* Three‑step flow */}
       <div className="mt-8 flex w-full max-w-4xl justify-around">
         <div className="flex flex-col items-center">
           <Upload className="h-8 w-8 text-gray-600" />
@@ -181,11 +234,9 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Sample contract image */}
       <div className="mt-12 w-full max-w-4xl">
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            {/* Place the generated sample image in public/images/sample-contract.png */}
             <img
               src="https://img.freepik.com/free-photo/business-handshake_23-2151944825.jpg"
               alt="business handshake"
@@ -197,14 +248,31 @@ export default function HomePage() {
           <div className="mt-12 w-full max-w-4xl">
             <Card className="p-6">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <CardTitle>Analysis Result</CardTitle>
                     <CardDescription>
                       {result.analysis_source} — <span className="text-primary italic">{saveStatus}</span>
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-4">
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Language Selector */}
+                    <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg border">
+                      <Languages className="w-4 h-4 text-gray-500" />
+                      <select
+                        className="bg-transparent text-sm font-medium focus:outline-none"
+                        value={selectedLang.value}
+                        onChange={handleLanguageChange}
+                        disabled={translating}
+                      >
+                        {LANGUAGES.map(lang => (
+                          <option key={lang.value} value={lang.value}>{lang.label}</option>
+                        ))}
+                      </select>
+                      {translating && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                    </div>
+
                     <div className="flex items-center gap-2 bg-primary/5 px-2 py-1 rounded-full border">
                       <span className="text-[9px] font-bold text-gray-400 uppercase">Jargon</span>
                       <button
@@ -221,6 +289,7 @@ export default function HomePage() {
                       </button>
                       <span className="text-[9px] font-bold text-primary uppercase">Simple</span>
                     </div>
+
                     <div className="flex bg-gray-100 p-1 rounded-lg">
                       <button
                         onClick={() => setActiveTab('analysis')}
@@ -249,37 +318,64 @@ export default function HomePage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {activeTab === 'analysis' ? (
-                  <p className="font-medium text-gray-700 leading-relaxed">
-                    {result.summary}
-                  </p>
-                ) : (
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <h4 className="flex items-center text-blue-800 font-semibold mb-2">
-                      <FileText className="w-4 h-4 mr-2" />
-                      Detailed Explanation
-                    </h4>
-                    <p className="text-blue-900 text-sm leading-relaxed italic">
-                      This analysis explains the key legal concepts found in your contract.
-                      Review the specifics below to understand your obligations and risks.
-                    </p>
-                  </div>
-                )}
-                {result.key_details && result.key_details.length > 0 && (
+                <div className="relative group">
+                  {activeTab === 'analysis' ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-start">
+                        <p className="font-medium text-gray-700 leading-relaxed flex-1">
+                          {displayResult.summary}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-2 text-primary hover:text-primary/80"
+                          onClick={() => isSpeaking ? stop() : speak(displayResult.summary, selectedLang.code)}
+                        >
+                          {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          <span className="ml-1 text-xs">{isSpeaking ? "Stop" : "Listen"}</span>
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="flex items-center text-blue-800 font-semibold">
+                          <FileText className="w-4 h-4 mr-2" />
+                          Detailed Explanation
+                        </h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-blue-700 hover:text-blue-800 hover:bg-blue-100"
+                          onClick={() => isSpeaking ? stop() : speak(displayResult.summary, selectedLang.code)}
+                        >
+                          {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          <span className="ml-1 text-xs">{isSpeaking ? "Stop" : "Listen"}</span>
+                        </Button>
+                      </div>
+                      <p className="text-blue-900 text-sm leading-relaxed italic">
+                        This analysis explains the key legal concepts found in your contract.
+                        Review the specifics below to understand your obligations and risks.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {displayResult.key_details && displayResult.key_details.length > 0 && (
                   <div>
                     <h4 className="mb-2 font-semibold">Key Details</h4>
                     <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                      {result.key_details.map((d: string, i: number) => (
+                      {displayResult.key_details.map((d: string, i: number) => (
                         <li key={i}>{d}</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {result.risks && result.risks.length > 0 && (
+                {displayResult.risks && displayResult.risks.length > 0 && (
                   <div>
                     <h4 className="mb-2 font-semibold">Risks</h4>
-                    {result.risks.map((risk: any, i: number) => (
-                      <div key={i} className="flex gap-4 rounded-lg border p-4">
+                    {displayResult.risks.map((risk: any, i: number) => (
+                      <div key={i} className="flex gap-4 rounded-lg border p-4 bg-white/50 backdrop-blur-sm">
                         <AlertTriangle
                           className={cn(
                             "h-5 w-5 shrink-0",
@@ -303,14 +399,27 @@ export default function HomePage() {
                                 {risk.severity}
                               </span>
                             </div>
-                            <span className={cn(
-                              "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                              risk.who_benefits === "User" ? "bg-green-100 text-green-700" :
-                                risk.who_benefits === "Company" ? "bg-red-100 text-red-700" :
-                                  "bg-gray-100 text-gray-600"
-                            )}>
-                              {risk.who_benefits ? `Benefits: ${risk.who_benefits}` : "Neutral"}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                risk.who_benefits === "User" ? "bg-green-100 text-green-700" :
+                                  risk.who_benefits === "Company" ? "bg-red-100 text-red-700" :
+                                    "bg-gray-100 text-gray-600"
+                              )}>
+                                {risk.who_benefits ? `Benefits: ${risk.who_benefits}` : "Neutral"}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                  const textToSpeak = plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation;
+                                  isSpeaking ? stop() : speak(textToSpeak, selectedLang.code);
+                                }}
+                              >
+                                {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                              </Button>
+                            </div>
                           </div>
                           <p className="text-sm text-gray-600 italic font-medium leading-relaxed">
                             “{plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation}”
@@ -326,13 +435,13 @@ export default function HomePage() {
                     ))}
                   </div>
                 )}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between border-t pt-4">
                   <p className="font-semibold text-lg">Safety Score: {result.score}/100</p>
                   <Button
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2 border-primary text-primary hover:bg-primary/5"
-                    onClick={() => generateContractReport(result, file?.name || "Contract_Text")}
+                    onClick={() => generateContractReport(displayResult, file?.name || "Contract_Text")}
                   >
                     <FileText className="h-4 w-4" />
                     Download PDF Report
