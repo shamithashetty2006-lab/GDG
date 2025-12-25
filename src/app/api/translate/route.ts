@@ -29,6 +29,7 @@ export async function POST(req: Request) {
         let textResponse = "";
         let usedModel = "";
 
+        const modelErrors: string[] = [];
         for (const modelName of modelsToTry) {
             try {
                 console.log(`Attempting translation with Gemini model: ${modelName}`);
@@ -40,15 +41,15 @@ export async function POST(req: Request) {
                 });
 
                 const prompt = `
-                    Translate the values in this JSON contract analysis into ${targetLanguage}.
-                    Keys to keep exactly the same: "summary", "key_details", "risks", "severity", "category", "clause", "explanation", "simple_explanation", "who_benefits", "impact", "confidence", "score".
+                    You are a professional translator. Translate the string values in the following JSON into ${targetLanguage}.
                     
-                    Rules:
-                    1. Translate ONLY the string values.
-                    2. Maintain the same JSON structure.
-                    3. Do not translate technical keys.
-                    4. If a value is a percentage or number, keep it as is.
-                    5. Return valid JSON only.
+                    IMPORTANT RULES:
+                    1. Maintain the EXACT JSON structure.
+                    2. Translate ONLY the values, never the keys. 
+                    3. Do NOT translate technical keys like "severity", "category", "who_benefits", etc.
+                    4. Ensure "summary" is a professional translation.
+                    5. Ensure each risk's "clause", "explanation", and "simple_explanation" are translated.
+                    6. Return valid JSON only, no markdown formatting.
                     
                     JSON to translate:
                     ${JSON.stringify(content)}
@@ -57,16 +58,25 @@ export async function POST(req: Request) {
                 const result = await model.generateContent(prompt);
                 const response = await result.response;
                 textResponse = response.text();
-                usedModel = modelName;
-                break; // Success!
+
+                if (textResponse && textResponse.trim()) {
+                    usedModel = modelName;
+                    break; // Success!
+                }
             } catch (modelErr: any) {
-                console.warn(`Translation with ${modelName} failed:`, modelErr.message);
+                const errMsg = `Model ${modelName} failed: ${modelErr.message}`;
+                console.warn(errMsg);
+                modelErrors.push(errMsg);
                 continue; // Try next model
             }
         }
 
         if (!textResponse) {
-            throw new Error("All Gemini models failed for translation.");
+            console.error("All translation models failed. Errors:", modelErrors);
+            return NextResponse.json({
+                error: "All Gemini models failed to translate the content.",
+                details: modelErrors.join("; ")
+            }, { status: 502 });
         }
 
         console.log(`Translation successful using model: ${usedModel}`);

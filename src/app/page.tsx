@@ -112,6 +112,7 @@ export default function HomePage() {
 
       const data = await res.json();
       setResult(data);
+      setAnalyzing(false); // Update UI immediately
 
       // Save to Firestore if user is logged in
       if (user) {
@@ -139,8 +140,7 @@ export default function HomePage() {
     } catch (err: any) {
       console.error(err);
       setSaveStatus(err.message || "An error occurred during analysis.");
-    } finally {
-      setAnalyzing(false);
+      setAnalyzing(false); // Ensure it's reset on error
     }
   };
 
