@@ -74,7 +74,7 @@ export function OnboardingTour() {
                 variant="outline"
                 size="sm"
                 onClick={() => { setIsOpen(true); setCurrentStep(0); }}
-                className="fixed bottom-4 right-4 z-40 rounded-full shadow-lg border-primary/20 bg-white/80 backdrop-blur-sm"
+                className="fixed top-20 right-4 z-[60] rounded-full shadow-lg border-primary/20 bg-white/80 backdrop-blur-sm"
             >
                 <HelpCircle className="h-4 w-4 mr-2 text-primary" />
                 Help Guide

@@ -43,14 +43,27 @@ app.post("/analyze", upload.single("file"), async (req, res) => {
         }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const modelsToTry = ["gemini-2.0-flash", "gemini-flash-latest", "gemini-pro-latest", "gemini-1.5-flash"];
 
         const systemPrompt = `Analyze the following contract and provide JSON assessment...`;
+        let result;
 
-        const result = await model.generateContent([
-            { text: systemPrompt },
-            { text: `Contract Content:\n${text.substring(0, 50000)}` }
-        ]);
+        for (const modelName of modelsToTry) {
+            try {
+                console.log(`Backend attempting analysis with Gemini model: ${modelName}`);
+                const model = genAI.getGenerativeModel({ model: modelName });
+                result = await model.generateContent([
+                    { text: systemPrompt },
+                    { text: `Contract Content:\n${text.substring(0, 50000)}` }
+                ]);
+                break; // Success
+            } catch (error) {
+                console.warn(`Backend Gemini Model ${modelName} failed:`, error.message);
+                continue;
+            }
+        }
+
+        if (!result) throw new Error("All Gemini models failed in backend");
 
         const response = await result.response;
         const cleanJson = response.text().replace(/```json/g, "").replace(/```/g, "").trim();

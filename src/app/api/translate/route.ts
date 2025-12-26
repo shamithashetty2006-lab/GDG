@@ -20,10 +20,10 @@ export async function POST(req: Request) {
 
         // Updated model list based on typical availability
         const modelsToTry = [
-            "gemini-flash-latest",
-            "gemini-1.5-flash",
             "gemini-2.0-flash",
-            "gemini-pro-latest"
+            "gemini-flash-latest",
+            "gemini-pro-latest",
+            "gemini-1.5-flash"
         ];
 
         let textResponse = "";

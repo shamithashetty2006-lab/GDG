@@ -113,12 +113,11 @@ export async function POST(req: Request) {
         `;
       promptParts.push({ text: systemInstruction });
 
-      // Use only models that are known to exist for the current API version
       const modelsToTry = [
-        "gemini-flash-latest",
-        "gemini-1.5-flash",
         "gemini-2.0-flash",
-        "gemini-pro-latest"
+        "gemini-flash-latest",
+        "gemini-pro-latest",
+        "gemini-1.5-flash"
       ];
 
       for (const modelName of modelsToTry) {
