@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2, Volume2, VolumeX, Languages, CheckCircle2, Info, HelpCircle } from "lucide-react";
+import { Upload, FileText, ArrowRight, AlertTriangle, LayoutDashboard, Loader2, Volume2, VolumeX, Languages, CheckCircle2, Info, HelpCircle, MessageSquare, Handshake, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useSpeech } from "@/hooks/use-speech";
 import { useSTT } from "@/hooks/use-stt";
 import { useEffect as useReactEffect } from "react";
+import { ContractChat } from "@/components/ContractChat";
 
 const LANGUAGES = [
   { label: "English", value: "English", code: "en-US" },
@@ -38,6 +39,10 @@ export default function HomePage() {
   const [plainEnglish, setPlainEnglish] = useState(false);
   const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
   const [translating, setTranslating] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [negotiatingId, setNegotiatingId] = useState<number | null>(null);
+  const [negotiationResults, setNegotiationResults] = useState<Record<number, any>>({});
+  const [expandedNegotiation, setExpandedNegotiation] = useState<number | null>(null);
   const { isListening, transcript, error: sttError, supported: sttSupported, startListening, setTranscript: setSttTranscript } = useSTT();
 
   useReactEffect(() => {
@@ -161,6 +166,36 @@ export default function HomePage() {
       String.fromCharCode(parseInt(p1, 16))
     ));
     await analyze({ base64, mimeType: "text/plain" });
+  };
+
+  const handleNegotiate = async (risk: any, index: number) => {
+    if (negotiationResults[index]) {
+      setExpandedNegotiation(expandedNegotiation === index ? null : index);
+      return;
+    }
+
+    setNegotiatingId(index);
+    try {
+      const res = await fetch("/api/negotiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clause: risk.clause,
+          explanation: risk.explanation,
+          context: result?.summary
+        }),
+      });
+
+      if (!res.ok) throw new Error("Negotiation failed");
+      const data = await res.json();
+      setNegotiationResults(prev => ({ ...prev, [index]: data }));
+      setExpandedNegotiation(index);
+    } catch (err) {
+      console.error("Negotiation error:", err);
+      alert("Failed to generate negotiation strategy.");
+    } finally {
+      setNegotiatingId(null);
+    }
   };
 
   return (
@@ -478,60 +513,107 @@ export default function HomePage() {
                   <div>
                     <h4 className="mb-2 font-semibold">Risks</h4>
                     {displayResult.risks.map((risk: any, i: number) => (
-                      <div key={i} className="flex gap-4 rounded-lg border p-4 bg-white/50 backdrop-blur-sm">
-                        <AlertTriangle
-                          className={cn(
-                            "h-5 w-5 shrink-0",
-                            risk.severity === "High"
-                              ? "text-red-500"
-                              : risk.severity === "Medium"
-                                ? "text-yellow-500"
-                                : "text-blue-500"
-                          )}
-                        />
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <p className="font-bold text-sm text-gray-900">{risk.clause}</p>
-                              <span className={cn(
-                                "text-[10px] uppercase font-black px-1.5 py-0.5 rounded",
-                                risk.severity === "High" ? "bg-red-200 text-red-800" :
-                                  risk.severity === "Medium" ? "bg-yellow-200 text-yellow-800" :
-                                    "bg-blue-200 text-blue-800"
-                              )}>
-                                {risk.severity}
-                              </span>
+                      <div key={i} className="mb-4">
+                        <div className="flex gap-4 rounded-lg border p-4 bg-white/50 backdrop-blur-sm">
+                          <AlertTriangle
+                            className={cn(
+                              "h-5 w-5 shrink-0",
+                              risk.severity === "High"
+                                ? "text-red-500"
+                                : risk.severity === "Medium"
+                                  ? "text-yellow-500"
+                                  : "text-blue-500"
+                            )}
+                          />
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-sm text-gray-900">{risk.clause}</p>
+                                <span className={cn(
+                                  "text-[10px] uppercase font-black px-1.5 py-0.5 rounded",
+                                  risk.severity === "High" ? "bg-red-200 text-red-800" :
+                                    risk.severity === "Medium" ? "bg-yellow-200 text-yellow-800" :
+                                      "bg-blue-200 text-blue-800"
+                                )}>
+                                  {risk.severity}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                  risk.who_benefits === "User" ? "bg-green-100 text-green-700" :
+                                    risk.who_benefits === "Company" ? "bg-red-100 text-red-700" :
+                                      "bg-gray-100 text-gray-600"
+                                )}>
+                                  {risk.who_benefits ? `Benefits: ${risk.who_benefits}` : "Neutral"}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => {
+                                    const textToSpeak = plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation;
+                                    isSpeaking ? stop() : speak(textToSpeak, selectedLang.code);
+                                  }}
+                                >
+                                  {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className={cn(
-                                "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                                risk.who_benefits === "User" ? "bg-green-100 text-green-700" :
-                                  risk.who_benefits === "Company" ? "bg-red-100 text-red-700" :
-                                    "bg-gray-100 text-gray-600"
-                              )}>
-                                {risk.who_benefits ? `Benefits: ${risk.who_benefits}` : "Neutral"}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => {
-                                  const textToSpeak = plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation;
-                                  isSpeaking ? stop() : speak(textToSpeak, selectedLang.code);
-                                }}
-                              >
-                                {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                              </Button>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600 italic font-medium leading-relaxed">
-                            “{plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation}”
-                          </p>
-                          {risk.impact && (
-                            <p className="text-[11px] text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-100">
-                              <span className="uppercase text-[9px] mr-2">Impact:</span>
-                              {risk.impact}
+                            <p className="text-sm text-gray-600 italic font-medium leading-relaxed">
+                              “{plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation}”
                             </p>
+                            {risk.impact && (
+                              <p className="text-[11px] text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-100">
+                                <span className="uppercase text-[9px] mr-2">Impact:</span>
+                                {risk.impact}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Negotiation Strategy Section */}
+                        <div className="mt-2 ml-9">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "h-7 text-[10px] font-bold gap-1.5 transition-all",
+                              negotiationResults[i] ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100" : "border-primary/20 text-primary hover:bg-primary/5"
+                            )}
+                            onClick={() => handleNegotiate(risk, i)}
+                            disabled={negotiatingId === i}
+                          >
+                            {negotiatingId === i ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Handshake className="h-3 w-3" />
+                            )}
+                            {negotiationResults[i] ? (expandedNegotiation === i ? "Hide Negotiation" : "View Negotiation") : "Negotiate Clause"}
+                            {negotiationResults[i] && (expandedNegotiation === i ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                          </Button>
+
+                          {expandedNegotiation === i && negotiationResults[i] && (
+                            <div className="mt-3 p-4 bg-green-50/50 rounded-xl border border-green-200 animate-in fade-in slide-in-from-top-2">
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-[10px] font-black text-green-800 uppercase mb-1">Suggested Safer Clause</p>
+                                  <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-green-100 italic leading-relaxed">
+                                    “{negotiationResults[i].suggested_clause}”
+                                  </p>
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-3">
+                                  <div className="bg-white/60 p-2.5 rounded-lg border border-green-100">
+                                    <p className="text-[9px] font-black text-green-800 uppercase mb-1">Why It's Better</p>
+                                    <p className="text-xs text-gray-700">{negotiationResults[i].why_it_is_better}</p>
+                                  </div>
+                                  <div className="bg-white/60 p-2.5 rounded-lg border border-green-100">
+                                    <p className="text-[9px] font-black text-green-800 uppercase mb-1">Negotiation Tip</p>
+                                    <p className="text-xs text-gray-700">{negotiationResults[i].negotiation_tip}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -555,6 +637,22 @@ export default function HomePage() {
           </div>
         )}
       </div>
-    </main>
+
+      <Button
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl z-40 group overflow-hidden transition-all hover:w-40"
+        onClick={() => setIsChatOpen(!isChatOpen)}
+      >
+        <div className="flex items-center gap-3">
+          <MessageSquare className="h-6 w-6 shrink-0" />
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity font-bold whitespace-nowrap">Chat Assistant</span>
+        </div>
+      </Button>
+
+      <ContractChat
+        contractText={text || (result ? JSON.stringify(result) : "")}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
+    </main >
   );
 }

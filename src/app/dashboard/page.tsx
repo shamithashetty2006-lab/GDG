@@ -4,7 +4,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { FileText, Plus, LogOut, Loader2, ArrowLeft, CheckCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { FileText, Plus, LogOut, Loader2, ArrowLeft, CheckCircle, AlertTriangle, Trash2, MessageSquare, Handshake, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
@@ -13,6 +13,7 @@ import { collection, query, where, onSnapshot, orderBy, deleteDoc, doc } from "f
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { generateContractReport } from "@/lib/pdf-gen";
+import { ContractChat } from "@/components/ContractChat";
 
 export default function DashboardPage() {
     const { user } = useAuth();
@@ -22,6 +23,10 @@ export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState<'contract' | 'summary' | 'risks'>('summary');
     const [loading, setLoading] = useState(true);
     const [plainEnglish, setPlainEnglish] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [negotiatingId, setNegotiatingId] = useState<number | null>(null);
+    const [negotiationResults, setNegotiationResults] = useState<Record<number, any>>({});
+    const [expandedNegotiation, setExpandedNegotiation] = useState<number | null>(null);
 
     useEffect(() => {
         if (!user) return;
@@ -64,6 +69,36 @@ export default function DashboardPage() {
         } catch (err) {
             console.error("Failed to delete document:", err);
             alert("Failed to delete the document. Please try again.");
+        }
+    };
+
+    const handleNegotiate = async (risk: any, index: number) => {
+        if (negotiationResults[index]) {
+            setExpandedNegotiation(expandedNegotiation === index ? null : index);
+            return;
+        }
+
+        setNegotiatingId(index);
+        try {
+            const res = await fetch("/api/negotiate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    clause: risk.clause,
+                    explanation: risk.explanation,
+                    context: selectedDoc?.summary
+                }),
+            });
+
+            if (!res.ok) throw new Error("Negotiation failed");
+            const data = await res.json();
+            setNegotiationResults(prev => ({ ...prev, [index]: data }));
+            setExpandedNegotiation(index);
+        } catch (err) {
+            console.error("Negotiation error:", err);
+            alert("Failed to generate negotiation strategy.");
+        } finally {
+            setNegotiatingId(null);
         }
     };
 
@@ -393,28 +428,74 @@ export default function DashboardPage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="space-y-2">
-                                                        <p className="text-sm text-gray-600 italic font-medium leading-relaxed">
-                                                            “{plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation}”
-                                                        </p>
+                                                        <div className="space-y-2">
+                                                            <p className="text-sm text-gray-600 italic font-medium leading-relaxed">
+                                                                “{plainEnglish ? (risk.simple_explanation || risk.explanation) : risk.explanation}”
+                                                            </p>
 
-                                                        {risk.impact && (
-                                                            <div className="flex gap-2 items-start bg-white/50 p-2 rounded-lg border border-dashed">
-                                                                <div className="text-[10px] font-black uppercase text-red-500 mt-0.5 shrink-0">Impact:</div>
-                                                                <p className="text-xs text-gray-600 leading-tight">{risk.impact}</p>
+                                                            {risk.impact && (
+                                                                <div className="flex gap-2 items-start bg-white/50 p-2 rounded-lg border border-dashed">
+                                                                    <div className="text-[10px] font-black uppercase text-red-500 mt-0.5 shrink-0">Impact:</div>
+                                                                    <p className="text-xs text-gray-600 leading-tight">{risk.impact}</p>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="flex items-center gap-2 pt-1 border-t border-dashed mt-2">
+                                                                <span className="text-[10px] font-bold text-gray-400 uppercase">Who Benefits:</span>
+                                                                <span className={cn(
+                                                                    "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                                                    risk.who_benefits === "User" ? "bg-green-100 text-green-700" :
+                                                                        risk.who_benefits === "Company" ? "bg-red-100 text-red-700" :
+                                                                            "bg-gray-100 text-gray-600"
+                                                                )}>
+                                                                    {risk.who_benefits || "Neutral"}
+                                                                </span>
                                                             </div>
-                                                        )}
 
-                                                        <div className="flex items-center gap-2 pt-1 border-t border-dashed mt-2">
-                                                            <span className="text-[10px] font-bold text-gray-400 uppercase">Who Benefits:</span>
-                                                            <span className={cn(
-                                                                "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                                                                risk.who_benefits === "User" ? "bg-green-100 text-green-700" :
-                                                                    risk.who_benefits === "Company" ? "bg-red-100 text-red-700" :
-                                                                        "bg-gray-100 text-gray-600"
-                                                            )}>
-                                                                {risk.who_benefits || "Neutral"}
-                                                            </span>
+                                                            {/* Negotiation Strategy Section */}
+                                                            <div className="mt-2">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className={cn(
+                                                                        "h-7 text-[10px] font-bold gap-1.5 transition-all",
+                                                                        negotiationResults[i] ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100" : "border-primary/20 text-primary hover:bg-primary/5"
+                                                                    )}
+                                                                    onClick={() => handleNegotiate(risk, i)}
+                                                                    disabled={negotiatingId === i}
+                                                                >
+                                                                    {negotiatingId === i ? (
+                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                    ) : (
+                                                                        <Handshake className="h-3 w-3" />
+                                                                    )}
+                                                                    {negotiationResults[i] ? (expandedNegotiation === i ? "Hide Negotiation" : "View Negotiation") : "Negotiate Clause"}
+                                                                    {negotiationResults[i] && (expandedNegotiation === i ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                                                                </Button>
+
+                                                                {expandedNegotiation === i && negotiationResults[i] && (
+                                                                    <div className="mt-3 p-4 bg-green-50/50 rounded-xl border border-green-200 animate-in fade-in slide-in-from-top-2">
+                                                                        <div className="space-y-3">
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-green-800 uppercase mb-1">Suggested Safer Clause</p>
+                                                                                <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-green-100 italic leading-relaxed">
+                                                                                    “{negotiationResults[i].suggested_clause}”
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="grid sm:grid-cols-2 gap-3">
+                                                                                <div className="bg-white/60 p-2.5 rounded-lg border border-green-100">
+                                                                                    <p className="text-[9px] font-black text-green-800 uppercase mb-1">Why It's Better</p>
+                                                                                    <p className="text-xs text-gray-700">{negotiationResults[i].why_it_is_better}</p>
+                                                                                </div>
+                                                                                <div className="bg-white/60 p-2.5 rounded-lg border border-green-100">
+                                                                                    <p className="text-[9px] font-black text-green-800 uppercase mb-1">Negotiation Tip</p>
+                                                                                    <p className="text-xs text-gray-700">{negotiationResults[i].negotiation_tip}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -440,6 +521,22 @@ export default function DashboardPage() {
                     )}
                 </div>
             </div>
-        </div>
+
+            <Button
+                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl z-40 group overflow-hidden transition-all hover:w-40"
+                onClick={() => setIsChatOpen(!isChatOpen)}
+            >
+                <div className="flex items-center gap-3">
+                    <MessageSquare className="h-6 w-6 shrink-0" />
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity font-bold whitespace-nowrap">Chat Assistant</span>
+                </div>
+            </Button>
+
+            <ContractChat
+                contractText={selectedDoc ? JSON.stringify(selectedDoc) : "No document selected"}
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+            />
+        </div >
     );
 }
