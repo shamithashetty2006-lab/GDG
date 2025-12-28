@@ -1,59 +1,54 @@
-📊 Contact Risk Analyzing Website
+# 🌐 AI-Powered Contract Risk Analyzer Web Platform (Gemini Integrated)
 
-A full-stack web application that analyzes **contact-based risk levels** using user-provided data and predefined models.  
-The platform includes authentication, backend processing, and report generation to help users understand potential exposure risks clearly and efficiently.
+## 📌 Overview
+A **full-stack AI web application** built using **Next.js** and **Google Gemini AI**, designed to provide intelligent analysis through **text or voice**, support **multiple languages**, and deliver **exportable AI-generated insights** in a secure, dashboard-driven environment.  
+The application is **live and deployed on Render**.
 
 ---
 
-🎯 Project Overview
+## ✨ Features
+- 🔐 Secure user authentication with protected routes  
+- 🤖 AI-powered content analysis using **Google Gemini**  
+- 🌍 Multilingual text translation support  
+- 🎙️ Speech-to-text for voice-based user input  
+- 📊 Dashboard to view AI-generated results  
+- 📄 PDF generation and download of AI outputs  
+- 🧭 Guided onboarding and smooth navigation  
+- 🎨 Clean, responsive, and user-friendly UI  
 
-The Contact Risk Analyzing Website is designed to:
-- Collect user contact-related inputs
-- Analyze risk using predefined models and logic
-- Display risk insights in a clean UI
-- Support authentication and secure access
-- Generate downloadable reports
+---
 
-This project demonstrates real-world application development using modern web technologies.
+## 🛠️ Tech Stack
+- **Frontend & Backend:** Next.js (App Router), React  
+- **Language:** TypeScript  
+- **AI:** Google Gemini API  
+- **Authentication:** Firebase  
+- **Deployment:** Render  
 
- ✨ Key Features
+---
 
-  **User Authentication**
-  - Firebase-based authentication
-  - Secure login system
+## 🚀 Run Locally
+npm install
+npm run dev
 
- **Contact Risk Analysis**
-  - Risk evaluation based on defined models and conditions
-  - Backend-powered analysis logic
+🎯 Use Cases
 
-  **Result Presentation**
-  - Clear risk status display
-  - Structured UI components
+Healthcare reports, educational content, legal documents, multilingual AI assistance, and voice-enabled productivity tools.
 
-  **PDF Report Generation**
-  - Automatically generate downloadable risk analysis reports
 
-   **Modular Architecture**
-  - Separate frontend and backend
-  - Reusable UI components
 
-🛠️ Technologies Used
 
- Frontend
-- **Next.js (App Router)**
-- **TypeScript**
-- **Tailwind CSS**
-- **Reusable UI Components**
 
- Backend
-- **Node.js**
-- **Express**
-- **API-based risk analysis**
 
-Other Tools & Services
-- **Firebase Authentication**
-- **PDF Generation Utility**
-- **ESLint**
+
+
+
+
+
+
+
+
+
 
 
 
