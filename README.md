@@ -29,6 +29,7 @@ The application is **live and deployed on Render**.
 
 ## 🚀 Run Locally
 npm install
+
 npm run dev
 
 🎯 Use Cases
