@@ -56,7 +56,12 @@ export default function HomePage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      // Reset result when a new file is uploaded
+      setResult(null);
+      setTranslatedResult(null);
+      setSaveStatus(null);
     }
   };
 
@@ -237,24 +242,49 @@ export default function HomePage() {
             <CardDescription>Supported formats: PDF, DOCX, TXT, images</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center">
-            <label className="flex cursor-pointer items-center justify-center rounded border border-dashed p-8">
-              <Upload className="mr-2 h-6 w-6" />
-              <span>Click or drag file here</span>
+            <label className={cn(
+              "flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-all hover:bg-primary/5",
+              file ? "border-green-400 bg-green-50/30" : "border-muted-foreground/25 hover:border-primary/50"
+            )}>
+              <div className="flex flex-col items-center text-center">
+                {file ? (
+                  <>
+                    <div className="mb-2 rounded-full bg-green-100 p-3">
+                      <CheckCircle2 className="h-8 w-8 text-green-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-green-800">File Uploaded Successfully</span>
+                    <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                      <p className="font-medium text-gray-700">{file.name}</p>
+                      <p>Size: {(file.size / 1024).toFixed(1)} KB</p>
+                      <p>Modified: {new Date(file.lastModified).toLocaleString()}</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mb-2 h-10 w-10 text-muted-foreground" />
+                    <span className="font-medium">Click or drag file here</span>
+                    <span className="mt-1 text-xs text-muted-foreground">PDF, DOCX, TXT, or images</span>
+                  </>
+                )}
+              </div>
               <input type="file" accept="*/*" className="hidden" onChange={handleFileChange} />
             </label>
             <Button
               onClick={handleUpload}
               disabled={!file || analyzing}
-              className="mt-4 w-full"
+              className={cn(
+                "mt-6 w-full py-6 text-base font-bold transition-all",
+                file && !analyzing && !result ? "bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200" : ""
+              )}
             >
               {analyzing ? (
                 <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Analyzing…
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Analyzing Document…
                 </div>
               ) : result ? (
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-5 w-5" />
                   Analysis Completed
                 </div>
               ) : (
@@ -529,14 +559,26 @@ export default function HomePage() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <p className="font-bold text-sm text-gray-900">{risk.clause}</p>
-                                <span className={cn(
-                                  "text-[10px] uppercase font-black px-1.5 py-0.5 rounded",
-                                  risk.severity === "High" ? "bg-red-200 text-red-800" :
-                                    risk.severity === "Medium" ? "bg-yellow-200 text-yellow-800" :
-                                      "bg-blue-200 text-blue-800"
-                                )}>
-                                  {risk.severity}
-                                </span>
+                                <div className="flex gap-1.5">
+                                  <span className={cn(
+                                    "text-[9px] uppercase font-black px-1.5 py-0.5 rounded",
+                                    risk.severity === "High" ? "bg-red-200 text-red-800" :
+                                      risk.severity === "Medium" ? "bg-yellow-200 text-yellow-800" :
+                                        "bg-blue-200 text-blue-800"
+                                  )}>
+                                    {risk.severity} Risk
+                                  </span>
+                                  {risk.fraud_likelihood && (
+                                    <span className={cn(
+                                      "text-[9px] uppercase font-black px-1.5 py-0.5 rounded border",
+                                      risk.fraud_likelihood === "High" ? "bg-red-50 text-red-700 border-red-200" :
+                                        risk.fraud_likelihood === "Medium" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                          "bg-green-50 text-green-700 border-green-200"
+                                    )}>
+                                      Fraud: {risk.fraud_likelihood}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={cn(

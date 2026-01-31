@@ -94,9 +94,10 @@ export async function POST(req: Request) {
             "risks": [
               {
                 "severity": "High" | "Medium" | "Low",
-                "category": "Termination" | "Payment" | "Arbitration" | "Auto-renewal" | "Liability" | "Confidentiality" | "Other",
+                "fraud_likelihood": "High" | "Medium" | "Low",
+                "category": "Termination" | "Payment" | "Arbitration" | "Auto-renewal" | "Liability" | "Confidentiality" | "Data-sharing" | "Vague-wording" | "Other",
                 "clause": "Title or quote of the clause",
-                "explanation": "Professional legal explanation.",
+                "explanation": "Professional legal explanation of the potential risk or scam pattern.",
                 "simple_explanation": "Plain-English explanation for a non-lawyer.",
                 "who_benefits": "User" | "Company" | "Neutral",
                 "impact": "Real-world practical consequence for the user.",
@@ -107,7 +108,13 @@ export async function POST(req: Request) {
           }
 
           Special instructions: 
-          - Flag Red-Flag Patterns: Auto-renewal traps, unilateral termination, and forced arbitration.
+          - **Scam & Fraud Pattern Detection**: Specifically look for and flag:
+            * Hidden fees or penalties.
+            * Extremely one-sided termination clauses.
+            * Forced auto-renewals with no easy opt-out.
+            * Excessive data-sharing permissions beyond what is necessary.
+            * Vague or misleading legal wording that hides obligations.
+          - Assign a `fraud_likelihood` (Low / Medium / High) to each risk based on how closely it matches a standard predatory or fraudulent pattern.
           - Use ethical, transparent language.
           - Return RAW JSON only. Do not wrap in markdown blocks.
         `;
@@ -161,7 +168,8 @@ async function analyzeWithOpenAI(openai: OpenAI, text: string, base64: string, m
         "key_details": ["3-5 crucial details in full sentences"],
         "risks": [{ 
           "severity": "High"|"Medium"|"Low", 
-          "category": "Termination"|"Payment"|"Arbitration"|"Auto-renewal"|"Liability"|"Other",
+          "fraud_likelihood": "High"|"Medium"|"Low",
+          "category": "Termination"|"Payment"|"Arbitration"|"Auto-renewal"|"Liability"|"Data-sharing"|"Vague-wording"|"Other",
           "clause": "Clause reference", 
           "explanation": "Professional explanation",
           "simple_explanation": "Plain-English simplified explanation",
@@ -171,6 +179,8 @@ async function analyzeWithOpenAI(openai: OpenAI, text: string, base64: string, m
         }],
         "score": 1-100
       }
+
+      Analyze for scam/fraud patterns: Hidden fees, one-sided termination, forced auto-renewals, excessive data-sharing, and vague wording. Assign fraud_likelihood to each risk.
     `;
 
   let messages: any[] = [{ role: "system", content: systemPrompt }];
@@ -247,13 +257,15 @@ function analyzeLocally(text: string) {
   if (lowerText.includes("confidential")) details.push("The document contains strictly defined confidentiality obligations.");
   if (lowerText.includes("payment") || lowerText.includes("fee")) details.push("Financial considerations and fee structures are explicitly outlined.");
 
-  // Professional Risk Heuristics
+  // Professional Risk & Fraud Heuristics
   const riskKeywords = [
-    { word: "indemnify", risk: "Indemnification Obligations", category: "Liability", who_benefits: "Company", explanation: "This clause creates a high financial risk by requiring one party to compensate the other for specified losses or damages.", simple: "You might have to pay for the other company's mistakes or legal fees.", impact: "Potential high out-of-pocket costs in a lawsuit.", severity: "High" },
-    { word: "liability", risk: "Limitation of Liability", category: "Liability", who_benefits: "Company", explanation: "A limitation of liability section may restrict your ability to recover full damages in the event of a breach.", simple: "There is a 'cap' on how much you can sue them for, even if they fail completely.", impact: "You cannot recover your full losses if they mess up.", severity: "High" },
-    { word: "termination", risk: "Termination Provisions", category: "Termination", who_benefits: "Neutral", explanation: "The agreement includes specific conditions under which the contract may be ended, potentially affecting long-term stability.", simple: "This explains how and when the deal can be ended.", impact: "The specific notice period could leave you stuck or suddenly without service.", severity: "Medium" },
-    { word: "arbitration", risk: "Dispute Resolution (Arbitration)", category: "Arbitration", who_benefits: "Company", explanation: "Forced arbitration clauses limit your right to seek judicial relief in a public court of law.", simple: "You can't go to court; you have to use a private judge they might choose.", impact: "Losing the right to a public trial and potentially unbiased jury.", severity: "High" },
-    { word: "auto-renew", risk: "Automatic Renewal", category: "Auto-renewal", who_benefits: "Company", explanation: "Contracts that renew without explicit consent can lead to unintended long-term financial commitments.", simple: "This deal keeps going forever unless you remember to cancel it.", impact: "You'll be charged automatically if you miss a deadline.", severity: "Medium" }
+    { word: "indemnify", risk: "Indemnification Obligations", category: "Liability", who_benefits: "Company", explanation: "This clause creates a high financial risk by requiring one party to compensate the other for specified losses or damages.", simple: "You might have to pay for the other company's mistakes or legal fees.", impact: "Potential high out-of-pocket costs in a lawsuit.", severity: "High", fraud: "Low" },
+    { word: "liability", risk: "Limitation of Liability", category: "Liability", who_benefits: "Company", explanation: "A limitation of liability section may restrict your ability to recover full damages in the event of a breach.", simple: "There is a 'cap' on how much you can sue them for, even if they fail completely.", impact: "You cannot recover your full losses if they mess up.", severity: "High", fraud: "Low" },
+    { word: "termination", risk: "Termination Provisions", category: "Termination", who_benefits: "Neutral", explanation: "The agreement includes specific conditions under which the contract may be ended, potentially affecting long-term stability.", simple: "This explains how and when the deal can be ended.", impact: "The specific notice period could leave you stuck or suddenly without service.", severity: "Medium", fraud: "Low" },
+    { word: "arbitration", risk: "Dispute Resolution (Arbitration)", category: "Arbitration", who_benefits: "Company", explanation: "Forced arbitration clauses limit your right to seek judicial relief in a public court of law.", simple: "You can't go to court; you have to use a private judge they might choose.", impact: "Losing the right to a public trial and potentially unbiased jury.", severity: "High", fraud: "Medium" },
+    { word: "auto-renew", risk: "Automatic Renewal", category: "Auto-renewal", who_benefits: "Company", explanation: "Contracts that renew without explicit consent can lead to unintended long-term financial commitments.", simple: "This deal keeps going forever unless you remember to cancel it.", impact: "You'll be charged automatically if you miss a deadline.", severity: "Medium", fraud: "Medium" },
+    { word: "hidden fee", risk: "Potential Hidden Fees", category: "Payment", who_benefits: "Company", explanation: "Mentions of undisclosed fees or charges were detected.", simple: "There might be secret costs you haven't seen yet.", impact: "Unexpected charges on your bill.", severity: "High", fraud: "High" },
+    { word: "data sharing", risk: "Excessive Data Sharing", category: "Data-sharing", who_benefits: "Company", explanation: "The contract may allow for broader data sharing than is typical for this type of agreement.", simple: "They might share your personal info with lots of other companies.", impact: "Loss of privacy and potential for spam/marketing.", severity: "Medium", fraud: "Medium" }
   ];
 
   riskKeywords.forEach(kw => {
@@ -261,6 +273,7 @@ function analyzeLocally(text: string) {
       score -= 15;
       risks.push({
         severity: kw.severity,
+        fraud_likelihood: kw.fraud,
         category: kw.category,
         clause: kw.risk,
         explanation: kw.explanation,

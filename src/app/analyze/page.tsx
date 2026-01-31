@@ -20,6 +20,7 @@ export default function AnalyzePage() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
+            setResult(null);
         }
     };
 
@@ -97,35 +98,50 @@ export default function AnalyzePage() {
 
                 {!result ? (
                     <Card className="border-2 border-dashed border-muted-foreground/25">
-                        <CardContent className="flex flex-col items-center justify-center space-y-4 py-12">
-                            <div className="rounded-full bg-primary/10 p-4">
-                                <Upload className="h-8 w-8 text-primary" />
-                            </div>
-                            <div className="text-center">
-                                <h3 className="text-lg font-semibold">Upload Contract</h3>
-                                <p className="text-sm text-muted-foreground">
-                                    Drag and drop or click to upload (PDF, TXT)
-                                </p>
-                            </div>
-                            <input
-                                type="file"
-                                accept=".txt,.md,.pdf,image/*"
-                                className="hidden"
-                                id="file-upload"
-                                onChange={handleFileChange}
-                            />
-                            <label htmlFor="file-upload">
-                                <Button variant="outline" asChild className="cursor-pointer">
-                                    <span>{file ? file.name : "Select File"}</span>
-                                </Button>
+                        <CardContent className="flex flex-col items-center justify-center space-y-6 py-12">
+                            <label className={cn(
+                                "flex w-full max-w-md cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-all hover:bg-primary/5",
+                                file ? "border-green-400 bg-green-50/30" : "border-muted-foreground/25 hover:border-primary/50"
+                            )}>
+                                <div className="flex flex-col items-center text-center">
+                                    {file ? (
+                                        <>
+                                            <div className="mb-3 rounded-full bg-green-100 p-4">
+                                                <CheckCircle className="h-10 w-10 text-green-600" />
+                                            </div>
+                                            <span className="text-lg font-bold text-green-800">File Uploaded Successfully</span>
+                                            <div className="mt-4 space-y-1 text-sm text-muted-foreground">
+                                                <p className="font-semibold text-gray-700">{file.name}</p>
+                                                <p>Size: {(file.size / 1024).toFixed(1)} KB</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="rounded-full bg-primary/10 p-4 mb-4">
+                                                <Upload className="h-8 w-8 text-primary" />
+                                            </div>
+                                            <h3 className="text-lg font-semibold">Upload Contract</h3>
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                PDF, TXT, or images
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                                <input
+                                    type="file"
+                                    accept=".txt,.md,.pdf,image/*"
+                                    className="hidden"
+                                    id="file-upload"
+                                    onChange={handleFileChange}
+                                />
                             </label>
 
                             {file && (
-                                <Button onClick={analyzeDocument} disabled={analyzing}>
+                                <Button size="lg" className="w-full max-w-md py-6 text-base font-bold" onClick={analyzeDocument} disabled={analyzing}>
                                     {analyzing ? (
                                         <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Analyzing...
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                            Analyzing Document...
                                         </>
                                     ) : (
                                         "Start Analysis"
@@ -181,7 +197,29 @@ export default function AnalyzePage() {
                                                         risk.severity === "Medium" ? "text-yellow-500" : "text-blue-500"
                                                 )} />
                                                 <div>
-                                                    <p className="font-medium">{risk.clause}</p>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <p className="font-bold text-gray-900">{risk.clause}</p>
+                                                        <div className="flex gap-1.5">
+                                                            <span className={cn(
+                                                                "text-[10px] uppercase font-black px-1.5 py-0.5 rounded",
+                                                                risk.severity === "High" ? "bg-red-200 text-red-800" :
+                                                                    risk.severity === "Medium" ? "bg-yellow-200 text-yellow-800" :
+                                                                        "bg-blue-200 text-blue-800"
+                                                            )}>
+                                                                {risk.severity} Risk
+                                                            </span>
+                                                            {risk.fraud_likelihood && (
+                                                                <span className={cn(
+                                                                    "text-[10px] uppercase font-black px-1.5 py-0.5 rounded border",
+                                                                    risk.fraud_likelihood === "High" ? "bg-red-50 text-red-700 border-red-200" :
+                                                                        risk.fraud_likelihood === "Medium" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                                                            "bg-green-50 text-green-700 border-green-200"
+                                                                )}>
+                                                                    Fraud: {risk.fraud_likelihood}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                     <p className="text-sm text-muted-foreground">{risk.explanation}</p>
                                                 </div>
                                             </div>
