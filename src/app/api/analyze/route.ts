@@ -114,7 +114,7 @@ export async function POST(req: Request) {
             * Forced auto-renewals with no easy opt-out.
             * Excessive data-sharing permissions beyond what is necessary.
             * Vague or misleading legal wording that hides obligations.
-          - Assign a `fraud_likelihood` (Low / Medium / High) to each risk based on how closely it matches a standard predatory or fraudulent pattern.
+          - Assign a fraud_likelihood (Low / Medium / High) to each risk based on how closely it matches a standard predatory or fraudulent pattern.
           - Use ethical, transparent language.
           - Return RAW JSON only. Do not wrap in markdown blocks.
         `;
